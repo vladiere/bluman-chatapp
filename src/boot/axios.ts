@@ -1,5 +1,6 @@
 import { boot } from 'quasar/wrappers';
 import axios, { AxiosInstance } from 'axios';
+import { useUserStore } from 'stores/user-store';
 
 declare module '@vue/runtime-core' {
   interface ComponentCustomProperties {
@@ -8,22 +9,27 @@ declare module '@vue/runtime-core' {
   }
 }
 
+const userStore = useUserStore();
+
 // Be careful when using SSR for cross-request state pollution
 // due to creating a Singleton instance here;
 // If any client changes this (global) instance, it might be a
 // good idea to move this instance creation inside of the
 // "export default () => {}" function below (which runs individually
 // for each client)
-// const api = axios.create({ baseURL: 'http://localhost:8080/api' });
-// const baseApi = axios.create({ baseURL: 'http://localhost:8080/api' });
+// const api = axios.create({ baseURL: 'http://localhost:4545/api' });
+// const baseApi = axios.create({ baseURL: 'http://localhost:4545/api' });
 
-const api = axios.create({ baseURL: 'https://iptchatapp.1.us-1.fl0.io/api/' });
-const baseApi = axios.create({ baseURL: 'https://iptchatapp.1.us-1.fl0.io/api/' });
+// const api = axios.create({ baseURL: 'https://iptchatapp.1.us-1.fl0.io/api/' });
+// const baseApi = axios.create({ baseURL: 'https://iptchatapp.1.us-1.fl0.io/api/' });
+//
+const api = axios.create({ baseURL: 'http://192.168.48.193:4545/api/' });
+const baseApi = axios.create({ baseURL: 'http://192.168.48.193:4545/api/' });
 
 const refreshToken = async () => {
   try {
-    const response = await api.post('/auth/refresh/token', {
-      refreshToken: SessionStorage.getItem("refresh"),
+    const response = await api.post('/auth/refresh', {
+      refreshToken: userStore.access,
     });
 
     return response.data;
@@ -35,7 +41,7 @@ const refreshToken = async () => {
 api.interceptors.request.use(
   async (config) => {
     if (!config.headers['Authorization']) {
-      config.header['Authorization'] = `Bearer ${SessionStorage.getItem('token')}`
+      config.headers['Authorization'] = `Bearer ${userStore.token}`
     }
     return config;
   },
@@ -47,7 +53,7 @@ api.interceptors.response.use(
   async (error) => {
     const prevRequest = error?.config;
 
-    if(error?.response.status === 401 && !prevRequest?.sent) {
+    if(error?.response?.status === 401 && !prevRequest?.sent) {
       prevRequest.sent = true;
 
       const token = await refreshToken();
@@ -55,7 +61,7 @@ api.interceptors.response.use(
       if (token) {
         prevRequest.headers['Authorization'] = `Bearer ${token.accessToken}`
 
-        SessionStorage.set('token', token.accessToken);
+        userStore.changeToken(token.accessToken);
         return api(prevRequest);
       } else {
         return Promise.reject(error);
